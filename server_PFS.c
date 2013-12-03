@@ -67,7 +67,22 @@ int main(int argc, char *argv[]){}
 
 
 
-		
+		if(sockets_read < 0){
+			perror("select");
+			exit(1);
+		}
+		else if(sockets_read == 0){
+			//No sockets are ready for reading from
+			printf("Waiting for client requests...\n");
+			fflush(stdout);
+		}
+		else{//there are sockets to be read from, handle the new connections and then deal with
+			//incoming data accordingly per socket
+
+			
+
+		}
+
 
 
 
