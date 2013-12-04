@@ -204,10 +204,13 @@ void handle_new_connection() {
 				total_connections += 1;
 				/* Files received as: Source ID,Source IP,Source port, file count
    				Then: File Name, File Size*/
+
+   				/*Maybe file count isn't necessary, come up with a good way to organize files
+   				by owner so that clients can easily read the master file list and request
+   				files from each other*/
 				recv(connection[i], inc_buf, 1024, NULL);
 				memcpy(client_info[i], inc_buf, strlen(inc_buf));
-				bzero(inc_buf, sizeof(inc_buf));
-				recv()
+				
 				for(j = 0; j < MAX_CONNECTIONS; j++){
 					/*broadcast updated master file list to all connected clients*/
 
@@ -229,8 +232,10 @@ void handle_data(int i){
 
 	char rec_buffer[24];
 	char send_buffer[1024];
+	/*Handle master file list request by clients*/
+	if(recv(connections[i], rec_buffer, 6)){
 
-	if(recv(connections[i], rec_buffer, 6))
+	}
 
 
 
