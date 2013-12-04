@@ -9,14 +9,14 @@ int total_connections;//total current clients connected
 int file_count;//total files stored in master file list
 char file_list[1024*MAX_CONNECTIONS];//master file list
 char client_info[MAX_CONNECTIONS][2048];//store client info:ID, IP, Port
-char client_ID_loc[MAX_CONNECTIONS];
+char client_id_loc[MAX_CONNECTIONS];
 
 
 /* Files received as: Source ID,Source IP,Source port, file count
    Then: File Name, File Size*/
 
 int main(int argc, char *argv[]){}
-	
+	bzero(file_list, sizeof(file_list));
 	int opt = 1;
 	int i;
 	int sockets_read;
@@ -202,7 +202,7 @@ void handle_new_connection() {
 			}
 			else{//if not add the connection to the list of current connections
 				bzero(inc_buf, sizeof(inc_buf));
-
+				connection_id_loc[i] = rec_id;
 				printf("\nConnection accepted:   FD=%d; Slot=%d; ID:%c\n",
 					inc_conn, i, connection_id[i]);
 
@@ -231,7 +231,7 @@ void handle_new_connection() {
 					if((connection[j] != connection[i]) && (connection[j] != 0) &&
 										 FD_ISSET(connection[j], &connected_clients)){
 
-
+						send(connection[j], file_list, strlen(file_list), NULL);
 
 
 					}
