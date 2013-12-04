@@ -220,7 +220,8 @@ void handle_new_connection() {
 				
 				sprintf(client_info[i],"%s, %d, %c: %s", inet_ntoa(inc_addr.sin_addr), 
 					ntohs(inc_addr.sin_port), rec_id, inc_buf);
-
+				/*instead of doing this, create a insert_to_masterfl function that accesses into the master file list
+				based on the length of the last entered string and starts directly after that point*/
 				memcpy(file_list[i*strlen(client_info[i])], client_info[i], 
 								strlen(client_info[i]));
 				
