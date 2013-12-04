@@ -7,8 +7,13 @@ int connections[MAX_CONNECTIONS];//array of sds containing currently connected c
 char connection_id[MAX_CONNECTIONS];//array of id's corresponding to connected clients
 int total_connections;//total current clients connected
 int file_count;//total files stored in master file list
-char **file_list;//master file list
+char file_list[MAX_CONNECTIONS][1024];//master file list
+char client_info[MAX_CONNECTIONS][1024];//store client info:ID, IP, Port
+char client_ID_loc[MAX_CONNECTIONS];
 
+
+/* Files received as: Source ID,Source IP,Source port, file count
+   Then: File Name, File Size*/
 
 int main(int argc, char *argv[]){}
 	
@@ -19,6 +24,7 @@ int main(int argc, char *argv[]){}
 	int new_sd;//newly accepted socket descriptor
 	struct sockaddr_in server_addr; //server address
 	socklen_t addrlen;
+
 
 	char buf[256];
 	int nbytes;
@@ -155,15 +161,15 @@ void build_select_list() {
 }
 
 void handle_new_connection() {
-	int i;	     //to keep track of current socket in list
+	int i,j;	     //to keep track of current socket in list
 	int inc_conn; /* sd for incoming connection */
-	char inc_buf[1];/*buffer to accept requesting sockets ID*/
+	char inc_buf[1024];/*buffer to accept requesting sockets ID*/
 	char rec_id; //id received from recv
 	/*incoming connection is request, check to make sure no client has the name ID.
 		If ID is not in use, continue, else remove the client sd from the list*/
 
 	inc_conn = accept(listen_sock, NULL, NULL);
-	total_connections += 1;
+	
 	if (inc_conn < 0) {
 
 		perror("accept");
@@ -173,26 +179,44 @@ void handle_new_connection() {
 	setnonblocking(inc_conn);
 
 	for (i = 0; i < MAX_CONNECTIONS; i ++){
+		//loop through all current connections 
+		if(connection[i] == 0) {//if connection is valid
 
-		if (connection[i] == 0) {
-
-			recv(connection[i], inc_buf, 1, NULL);
+			recv(connection[i], inc_buf, 1, NULL);//receive id on socket
 			rec_id = inc_buf[0];
-			if(strrchr(connection_id, rec_id)){
+			if(strrchr(connection_id, rec_id)){//check to see if the ID is already in 
+				//the set of connections
+
 
 				printf("\nError: connection with ID {%c} already in session, closing connection
 							\n", rec_id);
 
-				close(connection[i]);
-				connection[i] = 0;
-
+				close(inc_conn);//close the incoming connection and don't add it to the list
+				break;
 
 			}
-			else{
+			else{//if not add the connection to the list of current connections
+				bzero(inc_buf, sizeof(inc_buf));
 				printf("\nConnection accepted:   FD=%d; Slot=%d; ID:%c\n",
 					inc_conn, i, connection_id[i]);
-					connected_clients[i] = inc_conn;
-				break;
+
+				connections[i] = inc_conn;
+				total_connections += 1;
+				/* Files received as: Source ID,Source IP,Source port, file count
+   				Then: File Name, File Size*/
+				recv(connection[i], inc_buf, 1024, NULL);
+				memcpy(client_info[i], inc_buf, strlen(inc_buf));
+				bzero(inc_buf, sizeof(inc_buf));
+				recv()
+				for(j = 0; j < MAX_CONNECTIONS; j++){
+					/*broadcast updated master file list to all connected clients*/
+
+				}
+					
+
+				
+
+				break; //leave for loop
 			}
 			
 		}

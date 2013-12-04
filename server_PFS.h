@@ -13,6 +13,14 @@
 #define MAX_CONNECTIONS 10
 #define PORT 31337
 
+typdef struct{
+
+	char id;
+	int ip;
+	int port;
+
+}client_info;
+
 void set_nonblocking(int sock);
 void build_select_list();
 void handle_new_connection();
