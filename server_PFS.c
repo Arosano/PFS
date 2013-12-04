@@ -4,7 +4,10 @@ fd_set connected_clients;//list of connected clients sds
 int listen_sd; //socket descriptor for listening on
 int max_sd;//max sd number
 int connections[MAX_CONNECTIONS];//array of sds containing currently connected client sds
-char connection_id[MAX_CONNECTIONS];
+char connection_id[MAX_CONNECTIONS];//array of id's corresponding to connected clients
+int total_connections;//total current clients connected
+int file_count;//total files stored in master file list
+char **file_list;//master file list
 
 
 int main(int argc, char *argv[]){}
@@ -29,7 +32,7 @@ int main(int argc, char *argv[]){}
 
 	if(setsockopt(listen_sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(int)) == -1){
 			perror("set sock opt error");
-			exit(1);
+			exit(1); 
 	}//set socket options such that port address can be reused
 	set_nonblocking(listen_sock);
 	
@@ -79,7 +82,17 @@ int main(int argc, char *argv[]){}
 		else{//there are sockets to be read from, handle the new connections and then deal with
 			//incoming data accordingly per socket
 
-			
+			if(FD_ISSET(listen_sock, &connected_clients))
+				handle_new_connection();
+
+			for(i = 0; i < MAX_CONNECTIONS; i++){
+				if(FD_ISSET(connections[i], &connected_clients))
+					handle_data(i);
+			}
+
+
+
+
 
 		}
 
@@ -150,7 +163,7 @@ void handle_new_connection() {
 		If ID is not in use, continue, else remove the client sd from the list*/
 
 	inc_conn = accept(listen_sock, NULL, NULL);
-
+	total_connections += 1;
 	if (inc_conn < 0) {
 
 		perror("accept");
@@ -159,21 +172,26 @@ void handle_new_connection() {
 
 	setnonblocking(inc_conn);
 
-	for (i = 0; (i < MAX_CONNECTIONS); i ++){
+	for (i = 0; i < MAX_CONNECTIONS; i ++){
 
-		if (connected_clients[i] == 0) {
+		if (connection[i] == 0) {
 
-			recv(connected_clients[i], inc_buf, 1, NULL);
+			recv(connection[i], inc_buf, 1, NULL);
 			rec_id = inc_buf[0];
 			if(strrchr(connection_id, rec_id)){
-				printf("Error: connection with ID {%c} already in session\n", rec_id);
+
+				printf("\nError: connection with ID {%c} already in session, closing connection
+							\n", rec_id);
+
+				close(connection[i]);
+				connection[i] = 0;
 
 
 			}
 			else{
 				printf("\nConnection accepted:   FD=%d; Slot=%d; ID:%c\n",
 					inc_conn, i, connection_id[i]);
-				connected_clients[i] = inc_conn;
+					connected_clients[i] = inc_conn;
 				break;
 			}
 			
@@ -181,5 +199,16 @@ void handle_new_connection() {
 
 	}
 	
+}
+
+void handle_data(int i){
+
+	char rec_buffer[24];
+	char send_buffer[1024];
+
+	if(recv(connections[i], rec_buffer, 6))
+
+
+
 }
 
