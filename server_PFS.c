@@ -7,8 +7,8 @@ int connections[MAX_CONNECTIONS];//array of sds containing currently connected c
 char connection_id[MAX_CONNECTIONS];//array of id's corresponding to connected clients
 int total_connections;//total current clients connected
 int file_count;//total files stored in master file list
-char file_list[MAX_CONNECTIONS][1024];//master file list
-char client_info[MAX_CONNECTIONS][1024];//store client info:ID, IP, Port
+char file_list[1024*MAX_CONNECTIONS];//master file list
+char client_info[MAX_CONNECTIONS][2048];//store client info:ID, IP, Port
 char client_ID_loc[MAX_CONNECTIONS];
 
 
@@ -164,7 +164,10 @@ void handle_new_connection() {
 	int i,j;	     //to keep track of current socket in list
 	int inc_conn; /* sd for incoming connection */
 	char inc_buf[1024];/*buffer to accept requesting sockets ID*/
+	char send_buf[1024];
 	char rec_id; //id received from recv
+	struct sockaddr_in inc_addr;
+	socklen_t inc_addrlen;
 	/*incoming connection is request, check to make sure no client has the name ID.
 		If ID is not in use, continue, else remove the client sd from the list*/
 
@@ -187,9 +190,11 @@ void handle_new_connection() {
 			if(strrchr(connection_id, rec_id)){//check to see if the ID is already in 
 				//the set of connections
 
-
+				sprintf(send_buf, "Error: connection with ID {%c} already in session, closing connection", rec_id);
 				printf("\nError: connection with ID {%c} already in session, closing connection
 							\n", rec_id);
+				//might not be necessary
+				send(inc_conn,send_buf, strlen(send_buf), NULL);//send over error message
 
 				close(inc_conn);//close the incoming connection and don't add it to the list
 				break;
@@ -197,22 +202,39 @@ void handle_new_connection() {
 			}
 			else{//if not add the connection to the list of current connections
 				bzero(inc_buf, sizeof(inc_buf));
+
 				printf("\nConnection accepted:   FD=%d; Slot=%d; ID:%c\n",
 					inc_conn, i, connection_id[i]);
 
 				connections[i] = inc_conn;
 				total_connections += 1;
-				/* Files received as: Source ID,Source IP,Source port, file count
-   				Then: File Name, File Size*/
+				/* Files stored as: Source IP, Source port: Source ID, file count File Name,
+					 File Size*/
+   				
 
    				/*Maybe file count isn't necessary, come up with a good way to organize files
    				by owner so that clients can easily read the master file list and request
    				files from each other*/
 				recv(connection[i], inc_buf, 1024, NULL);
-				memcpy(client_info[i], inc_buf, strlen(inc_buf));
+				getpeername(connection[i], (struct sockaddr *) &inc_addr, &inc_addrlen);
+				
+				sprintf(client_info[i],"%s, %d, %c: %s", inet_ntoa(inc_addr.sin_addr), 
+					ntohs(inc_addr.sin_port), rec_id, inc_buf);
+
+				memcpy(file_list[i*strlen(client_info[i])], client_info[i], 
+								strlen(client_info[i]));
+				
+	
 				
 				for(j = 0; j < MAX_CONNECTIONS; j++){
 					/*broadcast updated master file list to all connected clients*/
+					if((connection[j] != connection[i]) && (connection[j] != 0) &&
+										 FD_ISSET(connection[j], &connected_clients)){
+
+
+
+
+					}
 
 				}
 					
