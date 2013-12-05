@@ -97,19 +97,7 @@ int main(int argc, char *argv[]){
 					handle_data(i);
 			}
 
-
-
-
-
 		}
-
-
-
-
-
-
-
-
 
 	}
 
@@ -187,7 +175,7 @@ void handle_new_connection() {
 		//loop through all current connections 
 		if(connections[i] == 0) {//if connection is valid
 
-			recv(connections[i], inc_buf, 1, 0);//receive id on socket
+			recv(inc_conn, inc_buf, 1, 0);//receive id on socket
 			rec_id = inc_buf[0];
 
 			if(strrchr(connection_id, rec_id)){//check to see if the ID is already in 
@@ -215,7 +203,7 @@ void handle_new_connection() {
 				
 				bzero(send_buf, sizeof(send_buf));
 
-				recv(connections[i], inc_buf, 10, 0);//receive port on socket
+				recv(inc_conn, inc_buf, 10, 0);//receive port on socket
 
 				memcpy(&rec_port, inc_buf, strlen(inc_buf));
 
