@@ -16,7 +16,9 @@
 void set_nonblocking(int sock);
 void build_select_list();
 void handle_new_connection();
+void remove_connection();
 void handle_data(int i);
 void masterfl_insert();
 void masterfl_remove(int i);
+
 

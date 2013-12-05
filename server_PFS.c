@@ -9,7 +9,7 @@ int total_connections;//total current clients connected
 int file_bytecount;//total bytes stored in master file list
 char file_list[1024*MAX_CONNECTIONS];//master file list
 char client_info[MAX_CONNECTIONS][2048];//store client info:ID, IP, Port
-char client_id_loc[MAX_CONNECTIONS];
+
 
 
 /* Files received as: Source ID,Source IP,Source port, file count
@@ -206,7 +206,7 @@ void handle_new_connection() {
 			else{//if not add the connection to the list of current connections
 
 				bzero(inc_buf, sizeof(inc_buf));
-				connection_id_loc[i] = rec_id;
+				connection_id[i] = rec_id;
 
 				printf("\nConnection accepted:   FD=%d; Slot=%d; ID:%c\n",
 					inc_conn, i, connection_id[i]);
@@ -269,8 +269,23 @@ void handle_data(int i){
 	char rec_buffer[24];
 	char send_buffer[1024];
 	/*Handle master file list request by clients*/
-	if(recv(connections[i], rec_buffer, 6)){
+	if(recv(connections[i], rec_buffer, 6) < 0){
 
+		printf("connection to client {%c} lost\n", connection_id[i]);
+		close(connections[i]);
+		connections[i] =0;
+		masterfl_remove(i);
+
+	}
+	if(strncmp(rec_buffer, "ls", 2) == 0){
+
+		send(connection[i], file_list, file_bytecount, NULL);
+	}
+	if(strncmp(rec_buffer, "exit", 4) == 0){
+		printf("connection to client {%c} closed\n", connection_id[i]);
+		close(connections[i]);
+		connections[i] = 0;
+		masterfl_remove(i);
 	}
 
 
@@ -290,7 +305,7 @@ void masterfl_remove(int i){
 	int bytecount = 0;
 	int remain = 0;
 	int j;
-	if(i < total_connections){
+	if(i < total_connections - 1){
 
 		
 		//get bytecount up to position to be removed
@@ -310,6 +325,9 @@ void masterfl_remove(int i){
 
 		file_bytecount = bytecount;
 
+	}
+	else if(i == total_connections - 1){
+		bzero(file_list[file_bytecount - strlen(client_info[i])],client_info[i]);
 	}
 
 }
