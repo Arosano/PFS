@@ -1,7 +1,7 @@
 #include "server_PFS.h"
 
 fd_set connected_clients;//list of connected clients sds
-int listen_sd; //socket descriptor for listening on
+int listen_sock; //socket descriptor for listening on
 int max_sd;//max sd number
 int connections[MAX_CONNECTIONS];//array of sds containing currently connected client sds
 char connection_id[MAX_CONNECTIONS];//array of id's corresponding to connected clients
@@ -15,7 +15,7 @@ char client_info[MAX_CONNECTIONS][2048];//store client info:ID, IP, Port
 /* Files received as: Source ID,Source IP,Source port, file count
    Then: File Name, File Size*/
 
-int main(int argc, char *argv[]){}
+int main(int argc, char *argv[]){
 	bzero(file_list, sizeof(file_list));
 	int opt = 1;
 	file_bytecount = 0;
@@ -32,7 +32,7 @@ int main(int argc, char *argv[]){}
 
 	struct timeval timeout;
 
-	if((listen_sock = socket(AF_INET, SOCK_STREAM, 0)) == -1){
+	if((listen_sock == socket(AF_INET, SOCK_STREAM, 0)) == -1){
 		perror("server socket error");
 		exit(1);
 	}//create client socket
@@ -41,9 +41,9 @@ int main(int argc, char *argv[]){}
 			perror("set sock opt error");
 			exit(1); 
 	}//set socket options such that port address can be reused
-	set_nonblocking(listen_sock);
+	setnonblocking(listen_sock);
 	
-	memset((char *) &server_address, 0, sizeof(server_addr));
+	memset((char *) &server_addr, 0, sizeof(server_addr));
 	server_addr.sin_family = AF_INET;
 	server_addr.sin_addr.s_addr = INADDR_ANY;
 	server_addr.sin_port = htons(PORT);
@@ -51,7 +51,7 @@ int main(int argc, char *argv[]){}
 
 	FD_SET(listen_sock, &connected_clients);
 
-	if(bind(listen_sock, (struct sockaddr *) &server_addr, sizeof(server_address)) < 0 ) {
+	if(bind(listen_sock, (struct sockaddr *) &server_addr, sizeof(server_addr)) < 0 ) {
 
 		perror("bind");
 		close(listen_sock);
@@ -63,7 +63,7 @@ int main(int argc, char *argv[]){}
 
 
 	max_sd = listen_sock;//set max sd to the current listening sd
-	bzero(connections, sizeof(connections);
+	bzero(connections, sizeof(connections));
 
 	while(1){
 
@@ -115,11 +115,11 @@ int main(int argc, char *argv[]){}
 
 }
 
-void setnonblocking(sock){
+void setnonblocking(int sock){
 
 	int opts;
 
-	opts = fcntl(sock,F_GETFL);//get file access mode and file status flags
+	opts = fcntl(sock, F_GETFL);//get file access mode and file status flags
 
 	if (opts < 0) {
 		perror("fcntl(F_GETFL)");
@@ -144,19 +144,19 @@ void build_select_list() {
 	
 	
 	
-	FD_SET(sock,&socks);
+	FD_SET(listen_sock,&connected_clients);
 	
 	/* Loop through all connections and add
 		the corresponding sd to the fd_set */
 	
 	for (i= 0; i < MAX_CONNECTIONS; i++) {
 
-		if (connectlist[i] != 0) {
+		if (connections[i] != 0) {
 
-			FD_SET(connectlist[i], &connected_clients);
+			FD_SET(connections[i], &connected_clients);
 
-			if (connectlist[i] > max_sd)
-				max_sd = connectlist[i];
+			if (connections[i] > max_sd)
+				max_sd = connections[i];
 		}
 	}
 }
@@ -185,19 +185,18 @@ void handle_new_connection() {
 
 	for (i = 0; i < MAX_CONNECTIONS; i ++){
 		//loop through all current connections 
-		if(connection[i] == 0) {//if connection is valid
+		if(connections[i] == 0) {//if connection is valid
 
-			recv(connection[i], inc_buf, 1, NULL);//receive id on socket
+			recv(connections[i], inc_buf, 1, 0);//receive id on socket
 			rec_id = inc_buf[0];
 
 			if(strrchr(connection_id, rec_id)){//check to see if the ID is already in 
 				//the set of connections
 
-				sprintf(send_buf, "Error: connection with ID {%c} already in session, closing connection", rec_id);
-				printf("\nError: connection with ID {%c} already in session, closing connection
-							\n", rec_id);
+				sprintf(send_buf, "Error: connection with ID {%c} already in session, closing connection\n", rec_id);
+				printf("\nError: connection with ID {%c} already in session, closing connection\n", rec_id);
 				//might not be necessary
-				send(inc_conn,send_buf, strlen(send_buf), NULL);//send over error message
+				send(inc_conn,send_buf, strlen(send_buf), 0);//send over error message
 
 				close(inc_conn);//close the incoming connection and don't add it to the list
 				break;
@@ -212,13 +211,13 @@ void handle_new_connection() {
 					inc_conn, i, connection_id[i]);
 				sprintf(send_buf,"connection accepted");
 
-				send(inc_conn,send_buf, strlen(send_buf), NULL);//send over connected message
+				send(inc_conn,send_buf, strlen(send_buf), 0);//send over connected message
 				
 				bzero(send_buf, sizeof(send_buf));
 
-				recv(connection[i], inc_buf, 10, NULL);//receive port on socket
+				recv(connections[i], inc_buf, 10, 0);//receive port on socket
 
-				rec_port = inc_buf;
+				memcpy(&rec_port, inc_buf, strlen(inc_buf));
 
 				bzero(inc_buf, sizeof(inc_buf));
 				connections[i] = inc_conn;
@@ -230,8 +229,8 @@ void handle_new_connection() {
    				/*Maybe file count isn't necessary, come up with a good way to organize files
    				by owner so that clients can easily read the master file list and request
    				files from each other*/
-				recv(connection[i], inc_buf, 1024, NULL);
-				getpeername(connection[i], (struct sockaddr *) &inc_addr, &inc_addrlen);
+				recv(connections[i], inc_buf, 1024, 0);
+				getpeername(connections[i], (struct sockaddr *) &inc_addr, &inc_addrlen);
 				
 				sprintf(client_info[i],"%s, %d, %c: %s", inet_ntoa(inc_addr.sin_addr), 
 					rec_port, rec_id, inc_buf);
@@ -242,10 +241,10 @@ void handle_new_connection() {
 				
 				for(j = 0; j < MAX_CONNECTIONS; j++){
 					/*broadcast updated master file list to all connected clients*/
-					if((connection[j] != connection[i]) && (connection[j] != 0) &&
-										 FD_ISSET(connection[j], &connected_clients)){
+					if((connections[j] != connections[i]) && (connections[j] != 0) &&
+										 FD_ISSET(connections[j], &connected_clients)){
 
-						send(connection[j], file_list, file_bytecount, NULL);
+						send(connections[j], file_list, file_bytecount, 0);
 
 
 					}
@@ -269,7 +268,7 @@ void handle_data(int i){
 	char rec_buffer[24];
 	char send_buffer[1024];
 	/*Handle master file list request by clients*/
-	if(recv(connections[i], rec_buffer, 6) < 0){
+	if(recv(connections[i], rec_buffer, 6, 0) < 0){
 
 		printf("connection to client {%c} lost\n", connection_id[i]);
 		close(connections[i]);
@@ -279,7 +278,7 @@ void handle_data(int i){
 	}
 	if(strncmp(rec_buffer, "ls", 2) == 0){
 
-		send(connection[i], file_list, file_bytecount, NULL);
+		send(connections[i], file_list, file_bytecount, 0);
 	}
 	if(strncmp(rec_buffer, "exit", 4) == 0){
 		printf("connection to client {%c} closed\n", connection_id[i]);
@@ -315,7 +314,7 @@ void masterfl_remove(int i){
 		}
 
 		remain = file_bytecount - bytecount;
-		bzero(file_list[bytecount], remain);
+		bzero(&file_list[bytecount], remain);
 		remain -= strlen(client_info[i]);
 		for(j = i + 1; j < total_connections; j++){
 
@@ -327,7 +326,7 @@ void masterfl_remove(int i){
 
 	}
 	else if(i == total_connections - 1){
-		bzero(file_list[file_bytecount - strlen(client_info[i])],client_info[i]);
+		bzero(&file_list[file_bytecount - strlen(client_info[i])], strlen(client_info[i]));
 	}
 
 }
