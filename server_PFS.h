@@ -20,7 +20,6 @@ void handle_new_connection();
 void handle_data(int i);
 void masterfl_insert();
 void masterfl_remove(int i);
-void remove_connection();
 
 
 
