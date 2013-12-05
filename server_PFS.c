@@ -6,7 +6,7 @@ int max_sd;//max sd number
 int connections[MAX_CONNECTIONS];//array of sds containing currently connected client sds
 char connection_id[MAX_CONNECTIONS];//array of id's corresponding to connected clients
 int total_connections;//total current clients connected
-int file_count;//total files stored in master file list
+int file_bytecount;//total bytes stored in master file list
 char file_list[1024*MAX_CONNECTIONS];//master file list
 char client_info[MAX_CONNECTIONS][2048];//store client info:ID, IP, Port
 char client_id_loc[MAX_CONNECTIONS];
@@ -18,6 +18,7 @@ char client_id_loc[MAX_CONNECTIONS];
 int main(int argc, char *argv[]){}
 	bzero(file_list, sizeof(file_list));
 	int opt = 1;
+	file_bytecount = 0;
 	int i;
 	int sockets_read;
 	
@@ -166,6 +167,7 @@ void handle_new_connection() {
 	char inc_buf[1024];/*buffer to accept requesting sockets ID*/
 	char send_buf[1024];
 	char rec_id; //id received from recv
+	int rec_port;
 	struct sockaddr_in inc_addr;
 	socklen_t inc_addrlen;
 	/*incoming connection is request, check to make sure no client has the name ID.
@@ -187,6 +189,7 @@ void handle_new_connection() {
 
 			recv(connection[i], inc_buf, 1, NULL);//receive id on socket
 			rec_id = inc_buf[0];
+
 			if(strrchr(connection_id, rec_id)){//check to see if the ID is already in 
 				//the set of connections
 
@@ -201,11 +204,23 @@ void handle_new_connection() {
 
 			}
 			else{//if not add the connection to the list of current connections
+
 				bzero(inc_buf, sizeof(inc_buf));
 				connection_id_loc[i] = rec_id;
+
 				printf("\nConnection accepted:   FD=%d; Slot=%d; ID:%c\n",
 					inc_conn, i, connection_id[i]);
+				sprintf(send_buf,"connection accepted");
 
+				send(inc_conn,send_buf, strlen(send_buf), NULL);//send over connected message
+				
+				bzero(send_buf, sizeof(send_buf));
+
+				recv(connection[i], inc_buf, 10, NULL);//receive port on socket
+
+				rec_port = inc_buf;
+
+				bzero(inc_buf, sizeof(inc_buf));
 				connections[i] = inc_conn;
 				total_connections += 1;
 				/* Files stored as: Source IP, Source port: Source ID, file count File Name,
@@ -219,11 +234,9 @@ void handle_new_connection() {
 				getpeername(connection[i], (struct sockaddr *) &inc_addr, &inc_addrlen);
 				
 				sprintf(client_info[i],"%s, %d, %c: %s", inet_ntoa(inc_addr.sin_addr), 
-					ntohs(inc_addr.sin_port), rec_id, inc_buf);
-				/*instead of doing this, create a insert_to_masterfl function that accesses into the master file list
-				based on the length of the last entered string and starts directly after that point*/
-				memcpy(file_list[i*strlen(client_info[i])], client_info[i], 
-								strlen(client_info[i]));
+					rec_port, rec_id, inc_buf);
+				masterfl_insert(i);
+				
 				
 	
 				
@@ -232,7 +245,7 @@ void handle_new_connection() {
 					if((connection[j] != connection[i]) && (connection[j] != 0) &&
 										 FD_ISSET(connection[j], &connected_clients)){
 
-						send(connection[j], file_list, strlen(file_list), NULL);
+						send(connection[j], file_list, file_bytecount, NULL);
 
 
 					}
@@ -261,6 +274,43 @@ void handle_data(int i){
 	}
 
 
+
+}
+
+void masterfl_insert(int i){
+	
+	strncpy(&file_list[file_bytecount], client_info[i], strlen(client_info[i]));
+
+	file_bytecount += strlen(client_info[i]);
+		
+}
+
+void masterfl_remove(int i){
+
+	int bytecount = 0;
+	int remain = 0;
+	int j;
+	if(i < total_connections){
+
+		
+		//get bytecount up to position to be removed
+		for(j = 0; j < i; j++){
+
+			bytecount = strlen(client_info[j]);
+		}
+
+		remain = file_bytecount - bytecount;
+		bzero(file_list[bytecount], remain);
+		remain -= strlen(client_info[i]);
+		for(j = i + 1; j < total_connections; j++){
+
+			strncpy(&file_list[bytecount], client_info[j], strlen(client_info[j]));
+			bytecount += strlen(client_info[j]);
+		}
+
+		file_bytecount = bytecount;
+
+	}
 
 }
 
