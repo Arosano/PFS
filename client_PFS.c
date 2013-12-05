@@ -4,12 +4,58 @@ char file_list[1024];
 
 int main(int argc, char *argv[]){
 
+	build_file_list();
+
 	pthread_t get_thread;
 	pthread_create(&get_thread, &attr, handle_get, (void *) NULL);
 
 
 
 
+}
+
+void build_file_list(){
+
+	char dir_namebuf[64];
+	int bytes_stored = 0;
+	FILE* fp;
+	char int_hold[6];
+	/*get the current directory*/
+	getcwd(dir_namebuf, sizeof(dir_namebuf));
+
+
+	DIR *dir;
+	struct dirent *ent;
+	/*open directory*/
+	if ((dir = opendir (dir_namebuf)) != NULL) {
+
+	  /* store all files in directory in file_list */
+	  while ((ent = readdir (dir)) != NULL) {
+	  	
+	  	bzero(int_hold, 6);
+	    sprintf (&file_list[bytes_stored],"%s, ", ent->d_name);
+	    bytes_stored += strlen(ent->d_name);
+	    /*open file, get size, store size in file list*/
+	    fp = fopen (ent->d_name, r+);
+	    fseek(fp, 0L, SEEK_END);
+		sz = ftell(fp);
+		sprintf(&file_list[bytes_stored],"%d, ", sz);
+
+		itoa(sz, int_hold, 10);
+
+		bytes_stored += strlen(int_hold);
+
+		fclose(fp);
+
+	  }
+
+	  closedir (dir);
+
+	} else {
+	  /* could not open directory */
+	  perror ("");
+	  return NULL;
+	}
 }
 
 void* handle_get(){
