@@ -53,8 +53,10 @@ void* handle_get(){
 		recv(client_sd, recv_buffer, 3, 0);
 		if(strncmp(recv_buffer,"get", 3) == 0){
 
-			send();
+			send(client_sd, file_list, strlen(file_list), 0);
 		}
+
+		close(client_sd);
 
 
 
