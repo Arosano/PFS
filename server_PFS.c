@@ -220,8 +220,8 @@ void handle_new_connection() {
 				recv(connections[i], inc_buf, 1024, 0);
 				getpeername(connections[i], (struct sockaddr *) &inc_addr, &inc_addrlen);
 				
-				sprintf(client_info[i],"%s, %d, %c: %s", inet_ntoa(inc_addr.sin_addr), 
-					rec_port, rec_id, inc_buf);
+				sprintf(client_info[i],"%s || %s || %d\n", inc_buf,
+					inet_ntoa(inc_addr.sin_addr), rec_port);
 				masterfl_insert(i);
 				
 				
