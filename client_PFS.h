@@ -17,6 +17,5 @@ pthread_attr_t attr;
 
 void* handle_get();
 void build_file_list();
-int get_filesize(int fd);
 void register_with_server(char id, int server_sd);
 
