@@ -1,14 +1,14 @@
 #include "client_PFS.h"
 
-char file_list[2056];
-int client_port;\
+char file_list[1024];
+int client_port;
 char client_id;
 
 int main(int argc, char *argv[]){
 
 	client_id = *argv[1];
 	char* server_ip = argv[2];
-	char input[64];
+	char input[128];
 	char recv_buffer[256];
 	char send_buffer[512];
 	int server_port = atoi(argv[3]);
@@ -23,6 +23,7 @@ int main(int argc, char *argv[]){
 	build_file_list();
 
 	pthread_t get_thread;
+	pthread_t get_command_thread;
 	pthread_create(&get_thread, &attr, handle_get, (void *) NULL);
 	/*setup local address information*/
 
@@ -55,12 +56,16 @@ int main(int argc, char *argv[]){
 	send(sd, send_buffer, strlen(send_buffer), 0);
 
 	bzero(send_buffer, sizeof(send_buffer));
-
+	/*deal with user commands*/
 	while(strncmp(input, "exit", 4) != 0 ){
+		setnonblocking(sd);
+		if(recv(sd, recv_buffer, sizeof(recv_buffer), 0) > 0){
+			printf("File List Update Received: %s\n", recv_buffer);
+		}
 
-		Printf("Input a command:\nls - request master file list from server\n
-			get <id> <Filename> - request file with < filename > directly from
-			 peer with ID < id >\n
+		Printf("\nInput a command:\nls - request master file list from server\n
+			get <id> <Filename> <filesize> <ip> <port> - request file with  <filename> directly from
+			 peer with ID <id>, ip address <ip> and port number <port>\n
 			 exit - close running client\n");
 		gets(input);
 
@@ -72,8 +77,11 @@ int main(int argc, char *argv[]){
 		}
 		else if(strncmp(input, "get", 3) == 0){
 
+			pthread_create(&get_command_thread, &attr, handle_get_command, input);
+
 
 		}
+		bzero(recv_buffer, sizeof(recv_buffer));
 	}
 
 
@@ -136,13 +144,15 @@ void* handle_get(){
 	struct sockaddr_in listen_addr;
 	struct sockaddr_in *sin_store;
 	struct sockaddr store_addr;
+	int retval_pass = 0;
+	int retval_fail = 1;
 	socklen_t store_addrlen;
 	socklen_t addr_len;
 	addr_len = sizeof(listen_addr);
 
 	if((sd = socket(AF_INET, SOCK_STREAM, 0)) < 0){
 			perror("socket");
-      		return NULL;
+      		pthread_exit(retval_fail);
 	}
 
 	listen_addr.sin_family = AF_INET;
@@ -151,12 +161,12 @@ void* handle_get(){
 
 	if(setsockopt(listen_sd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(int)) == -1){
 			perror("set sock opt error");
-			return NULL; 
+			pthread_exit(retval_fail);
 	}
 
 	if(bind(sd, (struct sockaddr *) &listen_addr, addr_len) < 0){
 		perror("bind");
-		return NULL;
+		pthread_exit(retval_fail);
 	}
 
 	getsockname(sd, store_addr, store_addrlen);
@@ -170,7 +180,7 @@ void* handle_get(){
 		if(listen(sd, 10) != 0){
 
 			perror("listen");
-			return NULL;
+			pthread_exit(retval_fail);
 		}
 
 
@@ -179,7 +189,7 @@ void* handle_get(){
 		recv(client_sd, recv_buffer, 3, 0);
 		if(strncmp(recv_buffer,"get", 3) == 0){
 
-			send(client_sd, file_list, strlen(file_list), 0);
+			
 		}
 
 		close(client_sd);
@@ -189,4 +199,80 @@ void* handle_get(){
 	}
 
 
+}
+
+void* handle_get_command(void* data){
+	pthread_detatch(pthread_self());
+	char* get_data = data;
+	char ip[11];
+	int port;
+	int opt = 1;
+	char filename[24];
+	FILE* new_file;
+	int filesize;
+	struct sockaddr_in peer_addr;
+	int sd;
+	int retval_pass = 0;
+	int retval_fail = 1;
+
+	char get_request[32];
+	char* recv_file_buffer;
+
+	sprintf(get_request, "get %s", filename);
+
+	if((sd = socket(AF_INET, SOCK_STREAM, 0)) < 0){
+			perror("socket");
+      		return NULL;
+	}
+
+	if(setsockopt(listen_sd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(int)) == -1){
+			perror("set sock opt error");
+			return NULL; 
+	}
+
+	sscanf(get_data, "%*s <%*c> <%s> <%d> <%s> <%d>", filename, filesize, ip, port);
+	recv_file_buffer = malloc(sizeof(char) * filesize);
+
+	new_file = fopen(filename, "wb+");
+
+	peer_addr.sin_family = AF_INET;
+	peer_addr.sin_addr.s_addr = inet_addr(ip);
+	peer_addr.sin_store = htons(port);
+
+	connect(sd, (struct sockaddr*) & peer_addr, sizeof(peer_addr));
+
+	send(sd, get_request, strlen(get_request), 0);
+
+	recv(sd, recv_file_buffer, filesize, 0);
+
+	fwrite(recv_file_buffer, sizeof(char), filesize, new_file);
+
+	fclose(new_file);
+	close(sd);
+
+	pthread_exit(retval_pass);
+
+
+
+}
+
+void setnonblocking(int sock){
+
+	int opts;
+
+	opts = fcntl(sock, F_GETFL);//get file access mode and file status flags
+
+	if (opts < 0) {
+		perror("fcntl(F_GETFL)");
+		exit(EXIT_FAILURE);
+	}
+
+	opts = (opts | O_NONBLOCK);//set opts to non blocking
+
+	if (fcntl(sock,F_SETFL,opts) < 0) {//set socket to non blocking
+		perror("fcntl(F_SETFL)");
+		exit(EXIT_FAILURE);
+	}
+
+	return;
 }
