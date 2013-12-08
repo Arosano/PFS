@@ -1,6 +1,6 @@
 #include "client_PFS.h"
 
-char file_list[1024];
+char file_list[5086];
 int client_port;
 char client_id;
 
@@ -110,21 +110,28 @@ void build_file_list(){
 
 	  /* store all files in directory in file_list */
 	  while ((ent = readdir (dir)) != NULL) {
-	  	
-	  	bzero(int_hold, 6);
-	    sprintf (&file_list[bytes_stored],"%s || ", ent->d_name);
-	    bytes_stored += strlen(ent->d_name);
+
 	    /*open file, get size, store size in file list*/
-	    fp = fopen (ent->d_name, "r+");
-	    fseek(fp, 0L, SEEK_END);
-		sz = ftell(fp);
-		sprintf(&file_list[bytes_stored],"%d || %c :: ", sz, client_id);
+	    
+	    if(strncmp(ent->d_name, "client", 6)){
+	    	bzero(int_hold, 6);
+	   	 	sprintf (&file_list[bytes_stored],"%s || ", ent->d_name);
+	    	bytes_stored += strlen(ent->d_name);
+		    fp = fopen (ent->d_name, "r+");
+		    printf("%s\n",ent->d_name);
 
-		sprintf(int_hold, "%d", sz);
+		    if(fp){
+			    fseek(fp, 0L, SEEK_END);
+				sz = ftell(fp);
+				sprintf(&file_list[bytes_stored],"%d || %c :: ", sz, client_id);
 
-		bytes_stored += strlen(int_hold);
+				sprintf(int_hold, "%d", sz);
 
-		fclose(fp);
+				bytes_stored += strlen(int_hold);
+
+				fclose(fp);
+			}
+		}
 
 	  }
 
@@ -143,8 +150,8 @@ void* handle_get(){
 	int sd, client_sd;
 	char recv_buffer[3];
 	struct sockaddr_in listen_addr;
-	struct sockaddr_in *sin_store;
-	struct sockaddr *store_addr;
+	struct sockaddr_in sin_store;
+	
 	int retval_pass = 0;
 	int retval_fail = 1;
 	socklen_t store_addrlen;
@@ -170,9 +177,13 @@ void* handle_get(){
 		pthread_exit(&retval_fail);
 	}
 
-	getsockname(sd, store_addr, &store_addrlen);
-	sin_store = (struct sockaddr_in *) store_addr;
-	client_port = (int) ntohs(sin_store -> sin_port);
+	if(getsockname(sd, (struct sockaddr *) &sin_store, &store_addrlen) != 0){
+		perror("getsockname:");
+		pthread_exit(&retval_fail);
+
+	}
+	
+	client_port = (int) ntohs(sin_store.sin_port);
 
 	printf("client_port = %d\n", client_port);
 
