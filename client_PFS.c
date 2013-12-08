@@ -29,12 +29,12 @@ int main(int argc, char *argv[]){
 
 	
 	/*set up server address information*/
-	listen_addr.sin_family = AF_INET;
-	listen_addr.sin_addr.s_addr = inet_addr(server);
-	listen_addr.sin_port = htons(server_port);
+	server_addr.sin_family = AF_INET;
+	server_addr.sin_addr.s_addr = inet_addr(server_ip);
+	server_addr.sin_port = htons(server_port);
 
-	connect(sd, (struct sockaddr *) server_addr, sizeof(server_addr));
-	send_buffer = client_id;
+	connect(sd, (struct sockaddr *) &server_addr, sizeof(server_addr));
+	send_buffer[0] = client_id;
 
 	send(sd, send_buffer, strlen(send_buffer), 0);
 
@@ -63,10 +63,10 @@ int main(int argc, char *argv[]){
 			printf("File List Update Received: %s\n", recv_buffer);
 		}
 
-		Printf("\nInput a command:\nls - request master file list from server\n
-			get <id> <Filename> <filesize> <ip> <port> - request file with  <filename> directly from
-			 peer with ID <id>, ip address <ip> and port number <port>\n
-			 exit - close running client\n");
+		printf("\nInput a command:\nls - request master file list from server\n"
+			"get <id> <Filename> <filesize> <ip> <port> - request file with  <filename> directly from"
+			 "peer with ID <id>, ip address <ip> and port number <port>\n"
+			 "exit - close running client\n");
 		gets(input);
 
 		if(strncmp(input, "ls", 2) == 0){
@@ -94,6 +94,7 @@ int main(int argc, char *argv[]){
 
 void build_file_list(){
 
+	int sz;
 	char dir_namebuf[64];
 	int bytes_stored = 0;
 	FILE* fp;
@@ -114,12 +115,12 @@ void build_file_list(){
 	    sprintf (&file_list[bytes_stored],"%s || ", ent->d_name);
 	    bytes_stored += strlen(ent->d_name);
 	    /*open file, get size, store size in file list*/
-	    fp = fopen (ent->d_name, r+);
+	    fp = fopen (ent->d_name, "r+");
 	    fseek(fp, 0L, SEEK_END);
 		sz = ftell(fp);
 		sprintf(&file_list[bytes_stored],"%d || %c :: ", sz, client_id);
 
-		itoa(sz, int_hold, 10);
+		sprintf(int_hold, "%d", sz);
 
 		bytes_stored += strlen(int_hold);
 
@@ -132,7 +133,7 @@ void build_file_list(){
 	} else {
 	  /* could not open directory */
 	  perror ("");
-	  return NULL;
+	  exit(1);
 	}
 }
 
@@ -140,10 +141,10 @@ void* handle_get(){
 
 	int opt = 1;
 	int sd, client_sd;
-	int recv_buffer[3];
+	char recv_buffer[3];
 	struct sockaddr_in listen_addr;
 	struct sockaddr_in *sin_store;
-	struct sockaddr store_addr;
+	struct sockaddr *store_addr;
 	int retval_pass = 0;
 	int retval_fail = 1;
 	socklen_t store_addrlen;
@@ -152,24 +153,24 @@ void* handle_get(){
 
 	if((sd = socket(AF_INET, SOCK_STREAM, 0)) < 0){
 			perror("socket");
-      		pthread_exit(retval_fail);
+      		pthread_exit(&retval_fail);
 	}
 
 	listen_addr.sin_family = AF_INET;
 	listen_addr.sin_addr.s_addr = INADDR_ANY;
 	listen_addr.sin_port = 0;
 
-	if(setsockopt(listen_sd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(int)) == -1){
+	if(setsockopt(sd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(int)) == -1){
 			perror("set sock opt error");
-			pthread_exit(retval_fail);
+			pthread_exit(&retval_fail);
 	}
 
 	if(bind(sd, (struct sockaddr *) &listen_addr, addr_len) < 0){
 		perror("bind");
-		pthread_exit(retval_fail);
+		pthread_exit(&retval_fail);
 	}
 
-	getsockname(sd, store_addr, store_addrlen);
+	getsockname(sd, store_addr, &store_addrlen);
 	sin_store = (struct sockaddr_in *) store_addr;
 	client_port = (int) ntohs(sin_store -> sin_port);
 
@@ -180,7 +181,7 @@ void* handle_get(){
 		if(listen(sd, 10) != 0){
 
 			perror("listen");
-			pthread_exit(retval_fail);
+			pthread_exit(&retval_fail);
 		}
 
 
@@ -202,7 +203,7 @@ void* handle_get(){
 }
 
 void* handle_get_command(void* data){
-	pthread_detatch(pthread_self());
+	pthread_detach(pthread_self());
 	char* get_data = data;
 	char ip[11];
 	int port;
@@ -225,19 +226,19 @@ void* handle_get_command(void* data){
       		return NULL;
 	}
 
-	if(setsockopt(listen_sd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(int)) == -1){
+	if(setsockopt(sd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(int)) == -1){
 			perror("set sock opt error");
 			return NULL; 
 	}
 
-	sscanf(get_data, "%*s <%*c> <%s> <%d> <%s> <%d>", filename, filesize, ip, port);
+	sscanf(get_data, "%*s <%*c> <%s> <%i> <%s> <%i>", filename, &filesize, ip, &port);
 	recv_file_buffer = malloc(sizeof(char) * filesize);
 
 	new_file = fopen(filename, "wb+");
 
 	peer_addr.sin_family = AF_INET;
 	peer_addr.sin_addr.s_addr = inet_addr(ip);
-	peer_addr.sin_store = htons(port);
+	peer_addr.sin_port = htons(port);
 
 	connect(sd, (struct sockaddr*) & peer_addr, sizeof(peer_addr));
 
@@ -250,7 +251,7 @@ void* handle_get_command(void* data){
 	fclose(new_file);
 	close(sd);
 
-	pthread_exit(retval_pass);
+	pthread_exit(&retval_pass);
 
 
 

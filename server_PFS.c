@@ -18,6 +18,7 @@ char client_info[MAX_CONNECTIONS][2048];//store client info:ID, IP, Port
 int main(int argc, char *argv[]){
 	bzero(file_list, sizeof(file_list));
 	int opt = 1;
+	int set =0;
 	file_bytecount = 0;
 	int i;
 	int sockets_read;
@@ -32,7 +33,7 @@ int main(int argc, char *argv[]){
 
 	struct timeval timeout;
 
-	if((listen_sock == socket(AF_INET, SOCK_STREAM, 0)) == -1){
+	if((listen_sock = socket(AF_INET, SOCK_STREAM, 0)) == -1){
 		perror("server socket error");
 		exit(1);
 	}//create client socket
@@ -83,12 +84,19 @@ int main(int argc, char *argv[]){
 		}
 		else if(sockets_read == 0){
 			//No sockets are ready for reading from
-			printf("Waiting for client requests...\n");
+			if(set == 0){
+				printf("Waiting for client requests...");
+				set = 1;
+			}
+			else
+				printf(".");
+			
 			fflush(stdout);
 		}
 		else{//there are sockets to be read from, handle the new connections and then deal with
 			//incoming data accordingly per socket
-
+			set = 0;
+			printf("\n");
 			if(FD_ISSET(listen_sock, &connected_clients))
 				handle_new_connection();
 
