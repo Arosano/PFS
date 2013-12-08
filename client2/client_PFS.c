@@ -1,6 +1,6 @@
 #include "client_PFS.h"
 
-char file_list[5086];
+char file_list[1024];
 int client_port;
 char client_id;
 
@@ -24,8 +24,7 @@ int main(int argc, char *argv[]){
 
 	pthread_t get_thread;
 	pthread_t get_command_thread;
-	pthread_create(&get_thread, &attr, handle_inc_get, (void *) NULL);
-	sleep(1);
+	pthread_create(&get_thread, &attr, handle_get, (void *) NULL);
 	/*setup local address information*/
 
 	
@@ -33,13 +32,13 @@ int main(int argc, char *argv[]){
 	server_addr.sin_family = AF_INET;
 	server_addr.sin_addr.s_addr = inet_addr(server_ip);
 	server_addr.sin_port = htons(server_port);
-	bzero(send_buffer, sizeof(send_buffer));
+
 	connect(sd, (struct sockaddr *) &server_addr, sizeof(server_addr));
 	send_buffer[0] = client_id;
 
 	send(sd, send_buffer, strlen(send_buffer), 0);
 
-	recv(sd, recv_buffer, 20, 0);
+	recv(sd, recv_buffer, 256, 0);
 
 	if(strncmp(recv_buffer, "Error", 5) == 0){
 		printf("%s\n", recv_buffer);
@@ -54,8 +53,7 @@ int main(int argc, char *argv[]){
 	bzero(recv_buffer, sizeof(recv_buffer));
 	/*send over the clients port*/
 	sprintf(send_buffer, "%d", client_port);
-	printf("sending over port: %s", send_buffer);
-	send(sd, send_buffer,5, 0);
+	send(sd, send_buffer, strlen(send_buffer), 0);
 
 	bzero(send_buffer, sizeof(send_buffer));
 	/*deal with user commands*/
@@ -66,12 +64,13 @@ int main(int argc, char *argv[]){
 		}
 
 		printf("\nInput a command:\nls - request master file list from server\n"
-			"get <id> <Filename> <filesize> <ip> <port> - get file from another client\n "
+			"get <id> <Filename> <filesize> <ip> <port> - request file with  <filename> directly from"
+			 "peer with ID <id>, ip address <ip> and port number <port>\n"
 			 "exit - close running client\n");
 		gets(input);
 
 		if(strncmp(input, "ls", 2) == 0){
-			send(sd, input, 2, 0);
+			send(sd, input, strlen(input), 0);
 			recv(sd, file_list, 2056, 0);
 			printf("file list received: %s\n", file_list);
 
@@ -111,30 +110,23 @@ void build_file_list(){
 
 	  /* store all files in directory in file_list */
 	  while ((ent = readdir (dir)) != NULL) {
-
+	  	
+	  	bzero(int_hold, 6);
+	    sprintf (&file_list[bytes_stored],"%s || ", ent->d_name);
+	    bytes_stored += strlen(ent->d_name);
 	    /*open file, get size, store size in file list*/
-	    
-	    if(strncmp(ent->d_name, "client", 6)){
-	    	
-		    fp = fopen (ent->d_name, "r+");
-		    
+	    printf("%s\n",ent->d_name);
+	    fp = fopen (ent->d_name, "r+");
+	    if(fp){
+		    fseek(fp, 0L, SEEK_END);
+			sz = ftell(fp);
+			sprintf(&file_list[bytes_stored],"%d || %c :: ", sz, client_id);
 
-		    if(fp){
-		    	printf("%s\n",ent->d_name);
-		    	bzero(int_hold, 6);
-	   	 		sprintf (&file_list[bytes_stored],"%s || ", ent->d_name);
-	    		bytes_stored += strlen(ent->d_name) + 4;
-			    fseek(fp, 0L, SEEK_END);
-				sz = ftell(fp);
-				sprintf(&file_list[bytes_stored],"%d || %c :: ", sz, client_id);
+			sprintf(int_hold, "%d", sz);
 
-				sprintf(int_hold, "%d", sz);
+			bytes_stored += strlen(int_hold);
 
-				bytes_stored += strlen(int_hold) + 9;
-				printf("\nbytes stored: %d\nFile List: %s\n", bytes_stored, file_list);
-
-				fclose(fp);
-			}
+			fclose(fp);
 		}
 
 	  }
@@ -148,20 +140,19 @@ void build_file_list(){
 	}
 }
 
-void* handle_inc_get(){
+void* handle_get(){
 
 	int opt = 1;
 	int sd, client_sd;
 	char recv_buffer[3];
 	struct sockaddr_in listen_addr;
-	struct sockaddr_in sin_store;
-	
+	struct sockaddr_in *sin_store;
+	struct sockaddr *store_addr;
 	int retval_pass = 0;
 	int retval_fail = 1;
 	socklen_t store_addrlen;
 	socklen_t addr_len;
 	addr_len = sizeof(listen_addr);
-	store_addrlen = sizeof(sin_store);
 
 	if((sd = socket(AF_INET, SOCK_STREAM, 0)) < 0){
 			perror("socket");
@@ -182,13 +173,9 @@ void* handle_inc_get(){
 		pthread_exit(&retval_fail);
 	}
 
-	if(getsockname(sd, (struct sockaddr *) &sin_store, &store_addrlen) != 0){
-		perror("getsockname:");
-		pthread_exit(&retval_fail);
-
-	}
-	
-	client_port = (int) ntohs(sin_store.sin_port);
+	getsockname(sd, store_addr, &store_addrlen);
+	sin_store = (struct sockaddr_in *) store_addr;
+	client_port = (int) ntohs(sin_store -> sin_port);
 
 	printf("client_port = %d\n", client_port);
 

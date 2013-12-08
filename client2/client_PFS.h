@@ -15,9 +15,9 @@
 
 pthread_attr_t attr;
 
-void* handle_inc_get();
+void* handle_get();
 void* handle_get_command(void* data);
 void build_file_list();
-
+void register_with_server(char id, int server_sd);
 void setnonblocking(int sock);
 

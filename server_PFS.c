@@ -166,6 +166,7 @@ void handle_new_connection() {
 	int rec_port;
 	struct sockaddr_in inc_addr;
 	socklen_t inc_addrlen;
+	inc_addrlen = sizeof(inc_addr);
 	/*incoming connection is request, check to make sure no client has the name ID.
 		If ID is not in use, continue, else remove the client sd from the list*/
 
@@ -207,13 +208,13 @@ void handle_new_connection() {
 					inc_conn, i, connection_id[i]);
 				sprintf(send_buf,"connection accepted");
 
-				send(inc_conn,send_buf, strlen(send_buf), 0);//send over connected message
+				send(inc_conn,send_buf, 20, 0);//send over connected message
 				
 				bzero(send_buf, sizeof(send_buf));
 
 				recv(inc_conn, inc_buf, 10, 0);//receive port on socket
-
-				memcpy(&rec_port, inc_buf, strlen(inc_buf));
+				printf("\nport received: %s\n", inc_buf);
+				memcpy(&rec_port, inc_buf, 5);
 
 				bzero(inc_buf, sizeof(inc_buf));
 				connections[i] = inc_conn;
@@ -227,7 +228,9 @@ void handle_new_connection() {
    				files from each other*/
 				recv(connections[i], inc_buf, 1024, 0);
 				getpeername(connections[i], (struct sockaddr *) &inc_addr, &inc_addrlen);
-				
+
+				printf("%s\n", inc_buf);
+
 				sprintf(client_info[i],"%s || %s || %d\n", inc_buf,
 					inet_ntoa(inc_addr.sin_addr), rec_port);
 				masterfl_insert(i);
@@ -267,6 +270,7 @@ void handle_data(int i){
 	if(recv(connections[i], rec_buffer, 6, 0) < 0){
 
 		printf("connection to client {%c} lost\n", connection_id[i]);
+		connection_id[i] = '\0';
 		close(connections[i]);
 		connections[i] =0;
 		masterfl_remove(i);
@@ -278,6 +282,7 @@ void handle_data(int i){
 	}
 	if(strncmp(rec_buffer, "exit", 4) == 0){
 		printf("connection to client {%c} closed\n", connection_id[i]);
+		connection_id[i] = '\0';
 		close(connections[i]);
 		connections[i] = 0;
 		masterfl_remove(i);
@@ -292,6 +297,7 @@ void masterfl_insert(int i){
 	strncpy(&file_list[file_bytecount], client_info[i], strlen(client_info[i]));
 
 	file_bytecount += strlen(client_info[i]);
+	printf("added to master file list: %s\n", file_list);
 		
 }
 
