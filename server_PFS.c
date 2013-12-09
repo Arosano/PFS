@@ -85,7 +85,7 @@ int main(int argc, char *argv[]){
 		else if(sockets_read == 0){
 			//No sockets are ready for reading from
 			if(set == 0){
-				printf("Waiting for client requests...");
+				printf("\n\nWaiting for client requests");
 				set = 1;
 			}
 			else
@@ -130,6 +130,27 @@ void setnonblocking(int sock){
 	}
 
 	return;
+}
+
+void setblocking(int sock){
+	int opts;
+
+	opts = fcntl(sock, F_GETFL);//get file access mode and file status flags
+
+	if (opts < 0) {
+		perror("fcntl(F_GETFL)");
+		exit(EXIT_FAILURE);
+	}
+
+	opts = opts & (~O_NONBLOCK);//set opts to non blocking
+
+	if (fcntl(sock,F_SETFL,opts) < 0) {//set socket to non blocking
+		perror("fcntl(F_SETFL)");
+		exit(EXIT_FAILURE);
+	}
+
+	return;
+
 }
 
 void build_select_list() {
@@ -204,17 +225,18 @@ void handle_new_connection() {
 				bzero(inc_buf, sizeof(inc_buf));
 				connection_id[i] = rec_id;
 
-				printf("\nConnection accepted:   FD=%d; Slot=%d; ID:%c\n",
+				printf("\nConnection accepted:   FD = %d; Slot = %d; ID:%c\n",
 					inc_conn, i, connection_id[i]);
 				sprintf(send_buf,"connection accepted");
 
 				send(inc_conn,send_buf, 20, 0);//send over connected message
 				
 				bzero(send_buf, sizeof(send_buf));
-
-				recv(inc_conn, inc_buf, 10, 0);//receive port on socket
-				printf("\nport received: %s\n", inc_buf);
-				memcpy(&rec_port, inc_buf, 5);
+				
+				while(recv(inc_conn, inc_buf, 10, 0) < 0);
+				
+				
+				rec_port = atoi(inc_buf);
 
 				bzero(inc_buf, sizeof(inc_buf));
 				connections[i] = inc_conn;
@@ -226,13 +248,16 @@ void handle_new_connection() {
    				/*Maybe file count isn't necessary, come up with a good way to organize files
    				by owner so that clients can easily read the master file list and request
    				files from each other*/
+   				setblocking(connections[i]);
 				recv(connections[i], inc_buf, 1024, 0);
+				setnonblocking(connections[i]);
 				getpeername(connections[i], (struct sockaddr *) &inc_addr, &inc_addrlen);
 
-				printf("%s\n", inc_buf);
+				
 
 				sprintf(client_info[i],"%s || %s || %d\n", inc_buf,
 					inet_ntoa(inc_addr.sin_addr), rec_port);
+				
 				masterfl_insert(i);
 				
 				
@@ -240,8 +265,7 @@ void handle_new_connection() {
 				
 				for(j = 0; j < MAX_CONNECTIONS; j++){
 					/*broadcast updated master file list to all connected clients*/
-					if((connections[j] != connections[i]) && (connections[j] != 0) &&
-										 FD_ISSET(connections[j], &connected_clients)){
+					if((connections[j] != connections[i]) && (connections[j] != 0)){
 
 						send(connections[j], file_list, file_bytecount, 0);
 
@@ -297,7 +321,7 @@ void masterfl_insert(int i){
 	strncpy(&file_list[file_bytecount], client_info[i], strlen(client_info[i]));
 
 	file_bytecount += strlen(client_info[i]);
-	printf("added to master file list: %s\n", file_list);
+	
 		
 }
 

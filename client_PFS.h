@@ -16,8 +16,9 @@
 pthread_attr_t attr;
 
 void* handle_inc_get();
-void* handle_get_command(void* data);
+void handle_get_command(char* data);
 void build_file_list();
+void* update_recv(void* sock);
 
 void setnonblocking(int sock);
 

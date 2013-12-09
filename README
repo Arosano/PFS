@@ -1,0 +1,23 @@
+Aaron Rosano
+
+
+To compile run: Make
+
+All clients should be in separate directories and must contain at least one file each besides the 
+executable. 
+
+It was easier for me to just copy the executable into all the client directories after compiling.
+
+My files are listed a little differently than instructed but still easy to read, the structure
+is like so:
+
+	filename || filesize || ID ::  || ip || port
+
+All files for the same client are listed on one line with the ip and port at the end. Double colons separate
+files and the ip and port from files.
+
+My system can hold a maximum of 10 clients by definition in the program. This can be changed easily by editing the MAX_CONNECTIONS variable in the header files. Also, there is a maximum file size of 2048. I didn't think to make a global variable defined in the header till too late for that, that was sloppy I apologize.
+
+Everything works well. Sometimes the server bugs out when closing a client with control-C, this only happens sometimes and even after hours of GDB debugging i couldn't figure out what the source of the problem was. The exit commmandworks smoothely though.
+
+

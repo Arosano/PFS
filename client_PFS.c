@@ -3,27 +3,33 @@
 char file_list[5086];
 int client_port;
 char client_id;
+int sd;
+int total_bytes;
+
 
 int main(int argc, char *argv[]){
 
 	client_id = *argv[1];
 	char* server_ip = argv[2];
 	char input[128];
+	int set = 0;
 	char recv_buffer[256];
 	char send_buffer[512];
 	int server_port = atoi(argv[3]);
 	struct sockaddr_in server_addr;
-	int sd;
+	
 
 	if((sd = socket(AF_INET, SOCK_STREAM, 0)) < 0){
 		perror("socket");
 		exit(1);
 	}
+	
 
 	build_file_list();
 
 	pthread_t get_thread;
 	pthread_t get_command_thread;
+	pthread_t update_thread;
 	pthread_create(&get_thread, &attr, handle_inc_get, (void *) NULL);
 	sleep(1);
 	/*setup local address information*/
@@ -47,43 +53,56 @@ int main(int argc, char *argv[]){
 		exit(1);
 	}
 	else
-		printf("%s\n", recv_buffer);
+		printf("\n%s\n\n", recv_buffer);
 
 
 	bzero(send_buffer, sizeof(send_buffer));
 	bzero(recv_buffer, sizeof(recv_buffer));
 	/*send over the clients port*/
 	sprintf(send_buffer, "%d", client_port);
-	printf("sending over port: %s", send_buffer);
+	
 	send(sd, send_buffer,5, 0);
+
 
 	bzero(send_buffer, sizeof(send_buffer));
 	/*deal with user commands*/
+	/*send file list*/
+	send(sd, file_list, total_bytes, 0);
+	pthread_create(&update_thread, &attr, update_recv, (void *) &sd);
 	while(strncmp(input, "exit", 4) != 0 ){
 		setnonblocking(sd);
-		if(recv(sd, recv_buffer, sizeof(recv_buffer), 0) > 0){
-			printf("File List Update Received: %s\n", recv_buffer);
+		
+		if(set == 0){
+			printf("\n\nInput a command:\n\n    ls - request master file list from server\n"
+				"\n    get <id> <Filename> <filesize> <ip> <port> - get file from another client\n"
+				 "\n    exit - close running client\n\n");
+			gets(input);
+
+			
+			if(strncmp(input, "ls", 2) == 0){
+				send(sd, input, 2, 0);
+				set = 1;
+				
+
+			}
+			
+			if(strncmp(input, "get", 3) == 0){
+
+				handle_get_command(input);
+
+
+			}
+			
+			bzero(recv_buffer, sizeof(recv_buffer));
 		}
-
-		printf("\nInput a command:\nls - request master file list from server\n"
-			"get <id> <Filename> <filesize> <ip> <port> - get file from another client\n "
-			 "exit - close running client\n");
-		gets(input);
-
-		if(strncmp(input, "ls", 2) == 0){
-			send(sd, input, 2, 0);
-			recv(sd, file_list, 2056, 0);
-			printf("file list received: %s\n", file_list);
-
+		else{
+			sleep(2);
+			set = 0;
 		}
-		else if(strncmp(input, "get", 3) == 0){
-
-			pthread_create(&get_command_thread, &attr, handle_get_command, input);
-
-
-		}
-		bzero(recv_buffer, sizeof(recv_buffer));
 	}
+
+	send(sd, input, 4, 0);
+	exit(0);
 
 
 	
@@ -120,7 +139,7 @@ void build_file_list(){
 		    
 
 		    if(fp){
-		    	printf("%s\n",ent->d_name);
+		    	
 		    	bzero(int_hold, 6);
 	   	 		sprintf (&file_list[bytes_stored],"%s || ", ent->d_name);
 	    		bytes_stored += strlen(ent->d_name) + 4;
@@ -131,13 +150,14 @@ void build_file_list(){
 				sprintf(int_hold, "%d", sz);
 
 				bytes_stored += strlen(int_hold) + 9;
-				printf("\nbytes stored: %d\nFile List: %s\n", bytes_stored, file_list);
+				
 
 				fclose(fp);
 			}
 		}
 
 	  }
+	  total_bytes = bytes_stored;
 
 	  closedir (dir);
 
@@ -148,11 +168,33 @@ void build_file_list(){
 	}
 }
 
+void* update_recv(void* sock){
+	
+	char recv_buffer[1024];
+	while(1){
+
+		
+		if(recv(sd, recv_buffer, sizeof(recv_buffer), 0) > 0){
+				printf("\n\nFile List Update Received: \n\n%s\n", recv_buffer);
+		}
+		
+
+		fflush(stdout);
+		bzero(recv_buffer, sizeof(recv_buffer));
+	}
+
+}
+
 void* handle_inc_get(){
 
+
+	char filename[16];
+	int filesize;
+	FILE* file;
 	int opt = 1;
 	int sd, client_sd;
-	char recv_buffer[3];
+	char recv_buffer[32];
+	char send_buffer[2048];
 	struct sockaddr_in listen_addr;
 	struct sockaddr_in sin_store;
 	
@@ -190,7 +232,8 @@ void* handle_inc_get(){
 	
 	client_port = (int) ntohs(sin_store.sin_port);
 
-	printf("client_port = %d\n", client_port);
+	
+
 
 	while(1){
 
@@ -203,14 +246,21 @@ void* handle_inc_get(){
 
 		client_sd = accept(sd, (struct sockaddr*)&listen_addr, &addr_len);
 
-		recv(client_sd, recv_buffer, 3, 0);
+		while(recv(client_sd, recv_buffer, 64, 0) < 0);
 		if(strncmp(recv_buffer,"get", 3) == 0){
+
+			sscanf(recv_buffer,"%*s %s %d",filename, &filesize);
+			
+			file = fopen(filename, "r+");
+			fread(send_buffer, 1, filesize, file);	
+			send(client_sd, send_buffer, filesize, 0);
 
 			
 		}
-
+		fclose(file);
 		close(client_sd);
-
+		bzero(send_buffer, sizeof(send_buffer));
+		bzero(recv_buffer, sizeof(recv_buffer));
 
 
 	}
@@ -218,9 +268,9 @@ void* handle_inc_get(){
 
 }
 
-void* handle_get_command(void* data){
-	pthread_detach(pthread_self());
-	char* get_data = data;
+void handle_get_command(char* data){
+	
+	
 	char ip[11];
 	int port;
 	int opt = 1;
@@ -235,19 +285,20 @@ void* handle_get_command(void* data){
 	char get_request[32];
 	char* recv_file_buffer;
 
-	sprintf(get_request, "get %s", filename);
+	
 
 	if((sd = socket(AF_INET, SOCK_STREAM, 0)) < 0){
 			perror("socket");
-      		return NULL;
+      		return;
 	}
 
 	if(setsockopt(sd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(int)) == -1){
 			perror("set sock opt error");
-			return NULL; 
+			return;
 	}
 
-	sscanf(get_data, "%*s <%*c> <%s> <%i> <%s> <%i>", filename, &filesize, ip, &port);
+	sscanf(data, "%*s %*c %s %i %s %i", filename, &filesize, ip, &port);
+	sprintf(get_request, "get %s %d", filename, filesize);
 	recv_file_buffer = malloc(sizeof(char) * filesize);
 
 	new_file = fopen(filename, "wb+");
@@ -267,7 +318,7 @@ void* handle_get_command(void* data){
 	fclose(new_file);
 	close(sd);
 
-	pthread_exit(&retval_pass);
+	
 
 
 
@@ -293,3 +344,4 @@ void setnonblocking(int sock){
 
 	return;
 }
+
